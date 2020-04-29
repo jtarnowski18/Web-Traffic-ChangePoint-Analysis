@@ -1,0 +1,292 @@
+---
+title: "ChangePoints Google"
+author: "Jacob Tarnowski"
+date: "3/14/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ACA)
+library(tidyverse)
+library(changepoint.np)
+library(data.table)
+library(plotly)
+library(stringr)
+library(TTR)
+```
+
+```{r}
+load("GoogleData.Rdata")
+```
+
+
+
+```{r}
+# data.frame("Date" = 1:nrow(Google),
+#            "Hits" = as.numeric(Google$Scaled)) -> data1
+# write.table(data1, file = "Google_data.txt", sep = ' ',
+#             row.names = FALSE, quote = FALSE)
+# 
+# 
+# df <- fread("Google_data (1).txt")
+# 
+# df <- df[1:500,]
+# 
+# write.table(df, file ="subsample.txt")
+# 
+# SDScan(namefi="subsample.txt", xleg="Date", yleg="Hits", titl="Google Hits", onecol="n", daty="n", gray="y")
+
+```
+
+
+
+
+
+```{r}
+#Google to a time series
+Goog <- ts(Google$Scaled, frequency = 1)
+
+#fit with auto arima
+fit <- auto.arima(Goog)
+summary(fit)
+#Find upper bound
+upper <- fitted(fit) + 1.96*sqrt(fit$sigma2)
+#Find Lower bout
+lower <- fitted(fit) - 1.96*sqrt(fit$sigma2)
+#Plot it
+plot(Goog, type="n", ylim=range(lower,upper), xlab = "Date", ylab = "Web Traffic", main = "Web Traffic Changepoints")
+polygon(c(time(Goog),rev(time(Goog))), c(upper,rev(lower)), 
+   col=rgb(0,0,0.6,0.2), border=FALSE)
+lines(Goog) 
+lines(fitted(fit),col='red')
+#Find the points that are outside the interval
+out <- (Goog < lower | Goog > upper)
+points(time(Goog)[out], Goog[out], pch=19)
+
+#Take True false varibale and put it into data frame (is the point in or out)
+Google$out<- out
+#Make column of row numbers --> it is easier to work with than dataes
+Google$num<- c(1:length(Google$Date))
+
+#Take only the points that are outside the the confidence interval
+chg <- Google[Google$out == TRUE,]
+
+#Cluster the points by date (row number) and Scaled
+clust <- kmeans(chg[,c(3,5)], centers = 30)
+#Look at the cluster centers
+plot(clust$centers)
+
+#Add a vector telling which point in in which cluster
+chg$cluster <- clust$cluster
+
+#Join data frames to get the cluster in the Main data frame
+Google <- full_join(Google, chg)
+
+
+#Fill in the NA's make the ChngPt variable the first cluster chronologically
+ChngPt <- chg$cluster[1]
+
+#Assign all points to a cluster
+#All points will be in  the same cluster until a different cluster appears
+for (i in 1:length(Google$Date)) {
+  if (Google$cluster[i] == ChngPt| is.na(Google$cluster[i])) {
+    Google$cluster[i] <- ChngPt
+  } else {
+    ChngPt <- Google$cluster[i]
+  }
+  
+}
+
+#Plot the clusters
+Google$cluster <- as.factor(Google$cluster)
+ggplotly(ggplot(Google, aes(Date, Scaled, color = cluster))+
+  geom_point()+
+  xlab("Date") +
+  ylab("Web Traffic")+
+  ggtitle("Web Traffic Clusters"))
+
+
+
+Google$cluster <- as.numeric(Google$cluster)
+#Create a vector showing the previous points cluster
+Google$PrevClust <- lag(Google$cluster, 1)
+#Create a true false vector where true indicates a change point
+Google$ChangePoint <- FALSE
+#Fill in the first observation so it is not NA (just used the first cluster to appear)
+Google$PrevClust[1] <- chg$cluster[1]
+#Is the cluster the same as the previous: Yes -> false, No -> TRUE
+for (i in 1:length(Google$Date)) {
+  if (Google$cluster[i] != Google$PrevClust[i]) {
+      Google$ChangePoint[i] <- TRUE
+  }
+  
+}
+
+
+```
+
+```{r}
+
+#Load in Apple stock data
+Apple <- fread("AppleStock.csv")
+#Change dates to Match the Google data frame
+Apple$Date <- gsub("/", "-", Apple$Date)
+names(Apple)[2] <- "Close"
+Apple$Close <- as.numeric(gsub("[\\$,]", "", Apple$Close))
+
+Apple_date_split <- str_split_fixed(Apple$Date, "-", 3)
+Apple$Year <- Apple_date_split[,3]
+Apple$Day <- Apple_date_split[,2]
+Apple$Month <- Apple_date_split[,1]
+Apple$Date <- paste(Apple$Month, Apple$Day, Apple$Year, sep = "/")
+Apple <- Apple %>%
+  arrange(Date)
+Apple <- Apple[,-c(7:9)]
+
+#Change dates to match the apple data frame
+Google_date_split <- str_split_fixed(Google$Date, "-", 3)
+Google$Year <- Google_date_split[,1]
+Google$Day <- Google_date_split[,3]
+Google$Month <- Google_date_split[,2]
+Google$Date <- paste(Google$Month, Google$Day, Google$Year, sep = "/")
+Google <- Google[, -c(9:11)]
+
+#Join the Google and Apple data to make a master data frame
+df <- left_join(Google, Apple)
+
+df <- df %>%
+  arrange(num)
+```
+
+
+```{r}
+df %>%
+  plot_ly(x = ~num, y = ~Scaled, mode = 'lines')%>%
+  layout(title = 'Apple Web Traffic',
+         xaxis = list(title = list(text = "Date")),
+         yaxis = list(title = list(text = "Scaled Web Traffic")))
+```
+
+
+
+
+```{r}
+#Read in apple stock data from yahoo
+Apple <- fread("D:/Stat 375/AppleStock.csv")
+#Change the Date column into proper format
+Apple$Date <- mdy(Apple$Date)
+#Arrange data from oldest to newest
+Apple <- Apple%>%
+  arrange(Date)
+str(Apple)
+
+names(Apple)[2]<- "Close"
+Apple$Close <- substring(Apple$Close, 2)
+Apple$Close <- as.numeric(Apple$Close)
+
+Apple%>%
+  plot_ly(x = ~Date, y = ~Close, mode = 'lines')%>%
+  layout(title = 'Apple Stock Price',
+         xaxis = list(title = list(text = "Date")),
+         yaxis = list(title = list(text = "Closing Price")))
+```
+
+
+```{r}
+library(plotly)
+
+
+
+
+
+
+fig <- df%>%
+  plot_ly(x = ~num, y = ~Scaled, mode = 'lines')
+
+# initiate a line shape object
+line <- list(
+  type = "line",
+  line = list(color = "red"),
+  xref = "x",
+  yref = "y"
+)
+
+
+  length(unique(df$cluster))
+
+
+lines <- list()
+for (i in 1:length(unique(df$cluster))) {
+  line[["x0"]] <- min(df$num[df$cluster == i])
+  line[["x1"]] <- max(df$num[df$cluster == i])
+  line[c("y0", "y1")] <- mean(df$Scaled[df$cluster == i])
+  lines <- c(lines, list(line))
+}
+
+fig <- layout(fig, title = 'Web Traffick Intervals', shapes = lines, xaxis = list(title = list(text = "Date")), yaxis = list(title = list(text = "Web Traffic")))
+  
+
+fig
+```
+
+```{r}
+df$mean_clust <- 0
+
+for(i in 1:length(df$Date)){
+  for (j in 1:30) {
+  if (df$cluster[i] == j) {
+    df$mean_clust[i] <- mean(df$Scaled[df$cluster == j])
+  }
+  }  
+}
+
+df$Inc_Change <- FALSE
+  for(i in 1:length(df$Date)){
+    if (df$ChangePoint[i] == TRUE) {
+      if (df$mean_clust[i] > df$mean_clust[i-1]) {
+        df$Inc_Change[i] <- TRUE
+      }
+    } 
+  }
+```
+
+```{r}
+
+df_red <- df[-c(1:52),]
+prev <- df_red$Close[1]
+for(i in 1:length(df_red$Date)){
+  if (is.na(df_red$Close[i])) {
+    df_red$Close[i] <- prev
+  } else {
+    prev <- df_red$Close[i]
+  }
+}
+
+
+df_red$Ten_Change <- 0
+
+change <- c()
+for (i in 1:length(df_red$Date)) {
+  change[1] <- abs(df_red$Close[i] - df_red$Close[i+1])
+  change[2] <- abs(df_red$Close[i] - df_red$Close[i+2])
+  change[3] <- abs(df_red$Close[i] - df_red$Close[i+3])
+  change[4] <- abs(df_red$Close[i] - df_red$Close[i+4])
+  change[5] <- abs(df_red$Close[i] - df_red$Close[i+5])
+  change[6] <- abs(df_red$Close[i] - df_red$Close[i+6])
+  change[7] <- abs(df_red$Close[i] - df_red$Close[i+7])
+  change[8] <- abs(df_red$Close[i] - df_red$Close[i+8])
+  change[9] <- abs(df_red$Close[i] - df_red$Close[i+9])
+  change[10] <- abs(df_red$Close[i] - df_red$Close[i+10])
+  df_red$Ten_Change[i] <- max(change)
+  change <- c()
+}
+
+
+Chng <-df_red[df_red$ChangePoint == TRUE,]
+Pos_Chng <- df_red[df_red$Inc_Change == TRUE,]
+```
+

@@ -1,0 +1,203 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(data.table)
+require(stringr)
+require(tidyverse)
+require(timeSeries)
+
+df <- fread("D:/Stat 375/multiTimeline.csv")
+df$set <- 0
+df1 <- fread("D:/Stat 375/multiTimeline (1).csv")
+df1$set <- 1
+df2 <- fread("D:/Stat 375/multiTimeline (2).csv")
+df2$set <- 2
+df3 <- fread("D:/Stat 375/multiTimeline (3).csv")
+df3$set <- 3
+df4 <- fread("D:/Stat 375/multiTimeline (4).csv")
+df4$set <- 4
+df5 <- fread("D:/Stat 375/multiTimeline (5).csv")
+df5$set <- 5
+df6 <- fread("D:/Stat 375/multiTimeline (6).csv")
+df6$set <- 6 
+df7 <- fread("D:/Stat 375/multiTimeline (7).csv")
+df7$set <- 7
+df8 <- fread("D:/Stat 375/multiTimeline (8).csv")
+df8$set <- 8
+df9 <- fread("D:/Stat 375/multiTimeline (9).csv")
+df9$set <- 9
+df10 <- fread("D:/Stat 375/multiTimeline (10).csv")
+df10$set <- 10
+df11 <- fread("D:/Stat 375/multiTimeline (11).csv")
+df11$set <- 11
+df12 <- fread("D:/Stat 375/multiTimeline (12).csv")
+df12$set <- 12
+df13 <- fread("D:/Stat 375/multiTimeline (13).csv")
+df13$set <- 13
+df14 <- fread("D:/Stat 375/multiTimeline (14).csv")
+df14$set <- 14
+df15 <- fread("D:/Stat 375/multiTimeline (15).csv")
+df15$set <- 15
+df16 <- fread("D:/Stat 375/multiTimeline (16).csv")
+df16$set <- 16
+df17 <- fread("D:/Stat 375/multiTimeline (17).csv")
+df17$set <- 17
+df18 <- fread("D:/Stat 375/multiTimeline (18).csv")
+df18$set <- 18
+df19 <- fread("D:/Stat 375/multiTimeline (19).csv")
+df19$set <- 19
+df20 <- fread("D:/Stat 375/multiTimeline (20).csv")
+df20$set <- 20
+df21 <- fread("D:/Stat 375/multiTimeline (21).csv")
+df21$set <- 21
+df22 <- fread("D:/Stat 375/multiTimeline (22).csv")
+df22$set <- 22
+df23 <- fread("D:/Stat 375/multiTimeline (23).csv")
+df23$set <- 23
+df24 <- fread("D:/Stat 375/multiTimeline (24).csv")
+df24$set <- 24
+
+
+
+Google <- rbind(df, df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, df15, df16, df17, df18, df19, df20, df21, df22, df23, df24)
+names(Google)[2] <- "Pop"
+names(Google)[1] <- "Date"
+
+Google$Month <- str_split_fixed(Google$Date, "-", 3)[,2]
+
+Google <- Google %>%
+  arrange(Date)
+
+for(i in 1:length(Google$Date)){
+  if (Google$set[i] >= 14) {
+    Google$set[i] <- Google$set[i] + 1
+  }
+}
+
+df25 <- fread("D:/Stat 375/multiTimeline (25).csv")
+df25$set <- 14
+names(df25)[2] <- "Pop"
+names(df25)[1] <- "Date"
+
+df25$Month <- str_split_fixed(df25$Date, "-", 3)[,2]
+
+Google <- rbind(Google, df25)
+
+Google <- Google %>%
+  arrange(Date)
+
+
+```
+
+```{r}
+Google$Scaled <- 0
+Google$first <- 0 
+Google$second <- 0
+
+
+
+set0_1 <- rbind(Google[Google$set == 1,1:7], Google[Google$set == 0,1:7])
+set0_1 <- set0_1%>%
+  arrange(Date)
+
+scaleing <- as.data.frame(table(set0_1$Date))
+names(scaleing)[1] <- "Date"
+
+set0_1 <- left_join(scaleing, set0_1)
+
+for (i in 1:length(scaleing$Date)) {
+  if(set0_1$Freq[i] == 2){
+  set0_1$first[i] <- set0_1$Pop[i]
+  for (j in 1:length(set0_1$set)) {
+    if ((set0_1$Date[i] == set0_1$Date[j]) & (set0_1$first[i] != set0_1$Pop[j])) {
+      set0_1$second[i] <- set0_1$Pop[j]
+      set0_1$Scale[i] <- set0_1$second[i] / set0_1$first[i]
+    }
+  }
+  }
+}
+
+
+scaleing <- set0_1 %>%
+  dplyr::filter(Freq == 2) %>%
+  dplyr::filter(set == max(set))
+
+ScaleSize <- mean(scaleing$Scale)
+
+for (i in 1:length(set0_1$Date)) {
+  if(set0_1$set[i] == 1){
+    set0_1$Scaled[i] <- set0_1$Pop[i] * ScaleSize  
+    
+  }
+  
+}
+
+set0_1 <- set0_1[(set0_1$Freq == 2 & set0_1$set ==1) | (set0_1$Freq == 1), c(1,3:8)]
+set0_1$set <- 0
+Google$set[Google$set == 1] <- 0
+Google <- Google[Google$set != 0,]
+Google$set[Google$set == min(Google$set)] <- 1
+```
+
+
+```{r}
+for (k in 1:25) {
+set0_1 <- rbind(Google[Google$set == 1,1:7], set0_1)
+set0_1 <- set0_1%>%
+  arrange(Date)
+
+scaleing = as.data.frame(table(set0_1$Date))
+names(scaleing)[1] <- "Date"
+
+set0_1 <- left_join(scaleing, set0_1)
+
+for (i in 1:length(scaleing$Date)) {
+  if(set0_1$Freq[i] == 2){
+  set0_1$first[i] <- set0_1$Pop[i]
+  for (j in 1:length(set0_1$set)) {
+    if ((set0_1$Date[i] == set0_1$Date[j]) & (set0_1$first[i] != set0_1$Pop[j])) {
+      set0_1$second[i] <- set0_1$Pop[j]
+      set0_1$Scale[i] <- set0_1$second[i] / set0_1$first[i]
+    }
+  }
+  }
+}
+
+scaleing <- set0_1%>%
+  dplyr::filter(Freq == 2)%>%
+  dplyr::filter(set == max(set))
+ScaleSize <- mean(scaleing$Scale)
+
+for (i in 1:length(set0_1$Date)) {
+  if(set0_1$set[i] == 1){
+    set0_1$Scaled[i] <- set0_1$Pop[i] * ScaleSize  
+    
+  }
+  
+}
+
+set0_1 <- set0_1[(set0_1$Freq == 2 & set0_1$set ==1) | (set0_1$Freq == 1), c(1,3:8)]
+set0_1$set <- 0
+Google$set[Google$set == 1] <- 0
+Google <- Google[Google$set != 0,]
+Google$set[Google$set == min(Google$set)] <- 1
+}
+
+ts <- ts(set0_1$Scaled, frequency = 1)
+plot(ts)
+
+Google <- set0_1[,c(1,2,5)]
+
+save(Google, file = "GoogleData.Rdata")
+
+
+```
+
+
